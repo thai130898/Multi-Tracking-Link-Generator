@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Tracking Link Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* Align to top for scrollable content */
+            min-height: 100vh;
+            background-color: #f3f4f6; /* Tailwind gray-100 */
+            padding: 1rem;
+        }
+        .container {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.75rem; /* Tailwind rounded-xl */
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); /* Tailwind shadow-lg */
+            width: 100%;
+            max-width: 700px; /* Increased max-width for multiple results */
+            margin-top: 2rem;
+            margin-bottom: 2rem;
+        }
+        .input-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500; /* Tailwind font-medium */
+            color: #374151; /* Tailwind gray-700 */
+        }
+        .textarea-field, .select-field {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid #D1D5DB; /* Tailwind border-gray-300 */
+            border-radius: 0.5rem; /* Tailwind rounded-lg */
+            margin-bottom: 1rem;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+        .textarea-field {
+            min-height: 120px; /* Good height for multiple numbers */
+            resize: vertical;
+        }
+        .textarea-field:focus, .select-field:focus {
+            outline: none;
+            border-color: #2563EB; /* Tailwind blue-600 */
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3); /* Focus ring */
+        }
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem; /* Tailwind rounded-lg */
+            font-weight: 600; /* Tailwind font-semibold */
+            transition: background-color 0.2s;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 0.5rem;
+            text-align: center;
+        }
+        .btn-sm { /* Smaller button for individual actions */
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem; /* text-sm */
+            width: auto;
+            margin-left: 0.5rem;
+        }
+        .btn-primary {
+            background-color: #2563EB; /* Tailwind blue-600 */
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #1D4ED8; /* Tailwind blue-700 */
+        }
+        .btn-secondary {
+            background-color: #4B5563; /* Tailwind gray-600 */
+            color: white;
+        }
+        .btn-secondary:hover {
+            background-color: #374151; /* Tailwind gray-700 */
+        }
+        .results-container {
+            margin-top: 1.5rem;
+            border: 1px solid #e5e7eb; /* Tailwind gray-200 */
+            border-radius: 0.5rem;
+            max-height: 400px; /* Max height for scrollability */
+            overflow-y: auto; /* Enable vertical scroll */
+        }
+        .result-item {
+            padding: 1rem;
+            background-color: #f9fafb; /* Tailwind gray-50 */
+            border-bottom: 1px solid #e5e7eb; /* Tailwind gray-200 */
+            font-size: 0.875rem; /* Tailwind text-sm */
+            color: #1f2937; /* Tailwind gray-800 */
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .result-item:last-child {
+            border-bottom: none;
+        }
+        .result-item-header {
+            font-weight: 500;
+        }
+        .result-link {
+            word-break: break-all;
+            color: #2563EB;
+            text-decoration: underline;
+        }
+        .result-actions {
+            display: flex;
+            justify-content: flex-end; /* Align buttons to the right */
+            align-items: center;
+            margin-top: 0.5rem;
+        }
+        .message-area {
+            margin-top: 1rem;
+            font-size: 0.875rem; /* Tailwind text-sm */
+            color: #16a34a; /* Tailwind green-600 */
+            text-align: center;
+            min-height: 1.25rem; /* Tailwind h-5 */
+        }
+        .title {
+            font-size: 1.5rem; /* Tailwind text-2xl */
+            font-weight: 700; /* Tailwind font-bold */
+            text-align: center;
+            margin-bottom: 1.5rem;
+            color: #111827; /* Tailwind gray-900 */
+        }
+        .hidden {
+            display: none;
+        }
+        /* optgroup styling removed as it's no longer used */
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">Multi-Tracking Link Generator</h1>
+
+        <div>
+            <label for="trackingNumbers" class="input-label">Tracking Numbers (one per line):</label>
+            <textarea id="trackingNumbers" class="textarea-field" placeholder="Enter tracking numbers, one per line..."></textarea>
+        </div>
+
+        <div>
+            <label for="carrier" class="input-label">Carrier:</label>
+            <select id="carrier" class="select-field">
+                <option value="auto" selected>Auto-Detect for Each Number</option>
+                <option value="fedex">FedEx</option>
+                <option value="ups">UPS</option>
+                <option value="dhl">DHL Express</option>
+                <option value="sfexpress">SF Express</option>
+                </select>
+        </div>
+
+        <button id="generateBtn" class="btn btn-primary">Generate Links</button>
+
+        <div id="overallResultArea" class="hidden">
+            <p class="input-label mt-6">Generated Tracking Links:</p>
+            <div id="resultsContainer" class="results-container">
+                </div>
+            <button id="copyAllBtn" class="btn btn-secondary mt-4">Copy All Links</button>
+        </div>
+        <div id="messageArea" class="message-area"></div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const trackingNumbersInput = document.getElementById('trackingNumbers');
+        const carrierSelect = document.getElementById('carrier');
+        const generateBtn = document.getElementById('generateBtn');
+        const overallResultArea = document.getElementById('overallResultArea');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const copyAllBtn = document.getElementById('copyAllBtn');
+        const messageArea = document.getElementById('messageArea');
+
+        // Carrier URL structures
+        const carrierBaseUrls = {
+            fedex: 'https://www.fedex.com/fedextrack/?trknbr=',
+            ups: 'https://www.ups.com/track?loc=en_US&tracknum=',
+            dhl: 'https://www.dhl.com/global-en/home/tracking/tracking-express.html?tracking-id=',
+            sfexpress: 'https://www.sf-international.com/us/en/dynamic_function/waybill/#search/bill-number/'
+            // viettelpost, bestexpress_vn, exp247, vippost removed
+        };
+        
+        // Suffixes for carriers that need them
+        const carrierUrlSuffixes = {
+            dhl: '&submit=1'
+        };
+
+        // Carrier names for display
+        const carrierDisplayNames = {
+            fedex: 'FedEx',
+            ups: 'UPS',
+            dhl: 'DHL Express',
+            sfexpress: 'SF Express',
+            // viettelpost, bestexpress_vn, exp247, vippost removed
+            unknown: 'Unknown'
+        };
+
+        // Regex patterns for carrier detection. Order is crucial for accuracy.
+        const carrierPatterns = [
+            // Highly specific, prefixed patterns first
+            { carrier: 'ups', regex: /^1Z[0-9A-Z]{16}$/i }, 
+            { carrier: 'sfexpress', regex: /^SF[0-9]{13}$/i }, 
+
+            // International carrier patterns (some numeric, some mixed)
+            { carrier: 'fedex', regex: /^6\d{11}$|^96\d{20}$/ }, // FedEx specific numeric prefixes
+            { carrier: 'fedex', regex: /^\d{12}$/ }, // FedEx 12 digits
+            { carrier: 'fedex', regex: /^\d{15}$/ }, // FedEx 15 digits
+            { carrier: 'dhl', regex: /^\d{10}$|^\d{11}$|^JJD\d{11,}/i }, 
+            
+            // Fallback SF Express numeric patterns (less specific)
+            // These are checked after FedEx specific length patterns.
+            { carrier: 'sfexpress', regex: /^[0-9]{12}$/ }, 
+            { carrier: 'sfexpress', regex: /^[0-9]{15}$/ }
+            // Vietnamese courier patterns removed
+        ];
+
+        /**
+         * Attempts to auto-detect the carrier.
+         */
+        function autoDetectCarrier(trackingNumber) {
+            const tnString = String(trackingNumber).toUpperCase(); 
+            for (const pattern of carrierPatterns) {
+                if (pattern.regex.test(tnString)) {
+                    return pattern.carrier;
+                }
+            }
+            return null; 
+        }
+
+        /**
+         * Generates tracking links.
+         */
+        function generateLinks() {
+            const rawTrackingNumbers = trackingNumbersInput.value.trim();
+            const selectedCarrierOption = carrierSelect.value;
+            
+            messageArea.textContent = '';
+            resultsContainer.innerHTML = ''; 
+            overallResultArea.classList.add('hidden');
+
+            if (!rawTrackingNumbers) {
+                displayMessage('Please enter one or more tracking numbers.', 'error');
+                return;
+            }
+
+            const trackingNumbersArray = rawTrackingNumbers.split('\n').map(num => num.trim()).filter(num => num !== '');
+
+            if (trackingNumbersArray.length === 0) {
+                displayMessage('Please enter valid tracking numbers.', 'error');
+                return;
+            }
+
+            let generatedCount = 0;
+            const allGeneratedLinks = [];
+
+            trackingNumbersArray.forEach((trackingNumber, index) => {
+                let actualCarrier = selectedCarrierOption;
+                let detectedCarrierName = carrierDisplayNames[actualCarrier] || 'Selected';
+
+                if (selectedCarrierOption === 'auto') {
+                    const detected = autoDetectCarrier(trackingNumber);
+                    if (detected) {
+                        actualCarrier = detected;
+                        detectedCarrierName = `Auto: ${carrierDisplayNames[actualCarrier] || actualCarrier.toUpperCase()}`;
+                    } else {
+                        actualCarrier = 'unknown'; 
+                        detectedCarrierName = 'Auto: Unknown';
+                    }
+                } else {
+                    detectedCarrierName = carrierDisplayNames[actualCarrier] || actualCarrier.toUpperCase();
+                }
+
+                let trackingUrl = '#'; 
+                if (actualCarrier !== 'unknown' && carrierBaseUrls[actualCarrier]) {
+                    let baseUrl = carrierBaseUrls[actualCarrier];
+                    let suffix = carrierUrlSuffixes[actualCarrier] || '';
+                    let encodedTrackingNumber = encodeURIComponent(trackingNumber);
+
+                    // Special handling for URL structures
+                    if (actualCarrier === 'sfexpress') { // Only SF Express needs this direct append now
+                        trackingUrl = baseUrl + trackingNumber + suffix; 
+                    } else { 
+                        trackingUrl = baseUrl + encodedTrackingNumber + suffix;
+                    }
+                    allGeneratedLinks.push(trackingUrl);
+                    generatedCount++;
+                }
+                
+                const resultItemDiv = document.createElement('div');
+                resultItemDiv.className = 'result-item';
+                resultItemDiv.innerHTML = `
+                    <div class="result-item-header">
+                        <span>TN: ${trackingNumber}</span> | 
+                        <span>Carrier: ${detectedCarrierName}</span>
+                    </div>
+                    ${actualCarrier !== 'unknown' ? `<div>Link: <a href="${trackingUrl}" target="_blank" class="result-link">${trackingUrl}</a></div>` : '<div class="text-red-500">Could not generate link (unknown carrier or format).</div>'}
+                    <div class="result-actions">
+                        ${actualCarrier !== 'unknown' ? `<button class="btn btn-secondary btn-sm copy-single-btn" data-link="${trackingUrl}">Copy</button>
+                        <a href="${trackingUrl}" target="_blank" class="btn btn-primary btn-sm no-underline">Go to Site</a>` : ''}
+                    </div>
+                `;
+                resultsContainer.appendChild(resultItemDiv);
+            });
+
+            if (generatedCount > 0) {
+                overallResultArea.classList.remove('hidden');
+                displayMessage(`${generatedCount} link(s) generated.`, 'success');
+            } else if (trackingNumbersArray.length > 0) { 
+                 displayMessage('Could not generate links for the provided numbers. Check format or select carrier.', 'error');
+            }
+
+            document.querySelectorAll('.copy-single-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    copyToClipboard(this.dataset.link, 'Single link copied!');
+                });
+            });
+            
+            if(allGeneratedLinks.length > 0) {
+                copyAllBtn.onclick = () => copyToClipboard(allGeneratedLinks.join('\n'), 'All links copied!');
+                copyAllBtn.classList.remove('hidden'); 
+            } else {
+                copyAllBtn.classList.add('hidden'); 
+            }
+        }
+
+        function copyToClipboard(text, successMessage) {
+            if (navigator.clipboard && window.isSecureContext) { 
+                navigator.clipboard.writeText(text)
+                    .then(() => {
+                        displayMessage(successMessage, 'success');
+                    })
+                    .catch(err => {
+                        console.error('Failed to copy: ', err);
+                        displayMessage('Failed to copy link. Try manual copy.', 'error');
+                        fallbackCopyTextToClipboard(text, successMessage); 
+                    });
+            } else { 
+                fallbackCopyTextToClipboard(text, successMessage);
+            }
+        }
+        
+        function fallbackCopyTextToClipboard(text, successMessage) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.top = "0";
+            textArea.style.left = "0";
+            textArea.style.position = "fixed";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                const successful = document.execCommand('copy');
+                displayMessage(successful ? successMessage + ' (fallback)' : 'Failed to copy (fallback).', successful ? 'success' : 'error');
+            } catch (err) {
+                console.error('Fallback: Oops, unable to copy', err);
+                displayMessage('Failed to copy. Please copy manually.', 'error');
+            }
+            document.body.removeChild(textArea);
+        }
+
+        function displayMessage(text, type) {
+            messageArea.textContent = text;
+            switch (type) {
+                case 'success':
+                    messageArea.className = 'message-area text-green-600'; 
+                    break;
+                case 'error':
+                    messageArea.className = 'message-area text-red-600';   
+                    break;
+                case 'info':
+                    messageArea.className = 'message-area text-blue-600';  
+                    break;
+                default:
+                    messageArea.className = 'message-area text-gray-700'; 
+            }
+            if (type !== 'error' || text.includes("generated")) { 
+                 setTimeout(() => {
+                    if (messageArea.textContent === text) { 
+                         messageArea.textContent = '';
+                    }
+                }, 4000);
+            }
+        }
+
+        generateBtn.addEventListener('click', generateLinks);
+
+        trackingNumbersInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter' && !event.shiftKey) { 
+                // event.preventDefault(); 
+                // generateLinks();
+            }
+        });
+        
+        carrierSelect.addEventListener('change', function() {
+            if (messageArea.textContent.startsWith('Auto-detected') || messageArea.textContent.startsWith('Auto: ')) {
+                messageArea.textContent = '';
+            }
+        });
+    </script>
+</body>
+</html>
