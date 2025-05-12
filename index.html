@@ -131,7 +131,6 @@
         .hidden {
             display: none;
         }
-        /* optgroup styling removed as it's no longer used */
     </style>
 </head>
 <body>
@@ -181,7 +180,6 @@
             ups: 'https://www.ups.com/track?loc=en_US&tracknum=',
             dhl: 'https://www.dhl.com/global-en/home/tracking/tracking-express.html?tracking-id=',
             sfexpress: 'https://www.sf-international.com/us/en/dynamic_function/waybill/#search/bill-number/'
-            // viettelpost, bestexpress_vn, exp247, vippost removed
         };
         
         // Suffixes for carriers that need them
@@ -195,101 +193,108 @@
             ups: 'UPS',
             dhl: 'DHL Express',
             sfexpress: 'SF Express',
-            // viettelpost, bestexpress_vn, exp247, vippost removed
             unknown: 'Unknown'
         };
 
         // Regex patterns for carrier detection. Order is crucial for accuracy.
         const carrierPatterns = [
-            // Highly specific, prefixed patterns first
             { carrier: 'ups', regex: /^1Z[0-9A-Z]{16}$/i }, 
             { carrier: 'sfexpress', regex: /^SF[0-9]{13}$/i }, 
-
-            // International carrier patterns (some numeric, some mixed)
-            { carrier: 'fedex', regex: /^6\d{11}$|^96\d{20}$/ }, // FedEx specific numeric prefixes
-            { carrier: 'fedex', regex: /^\d{12}$/ }, // FedEx 12 digits
-            { carrier: 'fedex', regex: /^\d{15}$/ }, // FedEx 15 digits
+            { carrier: 'fedex', regex: /^6\d{11}$|^96\d{20}$/ }, 
+            { carrier: 'fedex', regex: /^\d{12}$/ }, 
+            { carrier: 'fedex', regex: /^\d{15}$/ }, 
             { carrier: 'dhl', regex: /^\d{10}$|^\d{11}$|^JJD\d{11,}/i }, 
-            
-            // Fallback SF Express numeric patterns (less specific)
-            // These are checked after FedEx specific length patterns.
             { carrier: 'sfexpress', regex: /^[0-9]{12}$/ }, 
             { carrier: 'sfexpress', regex: /^[0-9]{15}$/ }
-            // Vietnamese courier patterns removed
         ];
 
         /**
-         * Attempts to auto-detect the carrier.
+         * Attempts to auto-detect the carrier for a given tracking number.
+         * @param {string} trackingNumber - The tracking number to check.
+         * @returns {string|null} The detected carrier key or null if not detected.
          */
         function autoDetectCarrier(trackingNumber) {
+            // Ensure trackingNumber is treated as a string and convert to uppercase for case-insensitive matching.
             const tnString = String(trackingNumber).toUpperCase(); 
             for (const pattern of carrierPatterns) {
                 if (pattern.regex.test(tnString)) {
-                    return pattern.carrier;
+                    return pattern.carrier; // Return the carrier key if a pattern matches
                 }
             }
-            return null; 
+            return null; // Return null if no pattern matches
         }
 
         /**
-         * Generates tracking links.
+         * Generates tracking links based on user input.
          */
         function generateLinks() {
-            const rawTrackingNumbers = trackingNumbersInput.value.trim();
+            const rawTrackingNumbers = trackingNumbersInput.value; // Get raw input
             const selectedCarrierOption = carrierSelect.value;
             
+            // Clear previous messages and results
             messageArea.textContent = '';
             resultsContainer.innerHTML = ''; 
-            overallResultArea.classList.add('hidden');
+            overallResultArea.classList.add('hidden'); // Hide results area initially
 
-            if (!rawTrackingNumbers) {
+            // Check if tracking numbers input is empty (after trimming whitespace from the whole input)
+            if (!rawTrackingNumbers.trim()) {
                 displayMessage('Please enter one or more tracking numbers.', 'error');
                 return;
             }
 
-            const trackingNumbersArray = rawTrackingNumbers.split('\n').map(num => num.trim()).filter(num => num !== '');
+            // Split tracking numbers by newline, trim whitespace from each number, 
+            // remove any internal spaces, and filter out empty lines.
+            const trackingNumbersArray = rawTrackingNumbers.split('\n')
+                .map(num => num.trim().replace(/\s+/g, '')) // MODIFIED LINE: Remove all internal spaces
+                .filter(num => num !== ''); // Filter out any empty strings that might result
 
+            // Check if there are any valid tracking numbers after processing
             if (trackingNumbersArray.length === 0) {
                 displayMessage('Please enter valid tracking numbers.', 'error');
                 return;
             }
 
-            let generatedCount = 0;
-            const allGeneratedLinks = [];
+            let generatedCount = 0; // Counter for successfully generated links
+            const allGeneratedLinks = []; // Array to store all generated links for "Copy All"
 
-            trackingNumbersArray.forEach((trackingNumber, index) => {
+            // Process each tracking number
+            trackingNumbersArray.forEach((trackingNumber) => {
                 let actualCarrier = selectedCarrierOption;
                 let detectedCarrierName = carrierDisplayNames[actualCarrier] || 'Selected';
 
+                // If 'auto-detect' is selected, try to determine the carrier
                 if (selectedCarrierOption === 'auto') {
                     const detected = autoDetectCarrier(trackingNumber);
                     if (detected) {
                         actualCarrier = detected;
                         detectedCarrierName = `Auto: ${carrierDisplayNames[actualCarrier] || actualCarrier.toUpperCase()}`;
                     } else {
-                        actualCarrier = 'unknown'; 
+                        actualCarrier = 'unknown'; // Mark as unknown if detection fails
                         detectedCarrierName = 'Auto: Unknown';
                     }
                 } else {
+                    // Use the selected carrier's display name
                     detectedCarrierName = carrierDisplayNames[actualCarrier] || actualCarrier.toUpperCase();
                 }
 
-                let trackingUrl = '#'; 
+                let trackingUrl = '#'; // Default URL if generation fails
+                // Generate URL if carrier is known and has a base URL
                 if (actualCarrier !== 'unknown' && carrierBaseUrls[actualCarrier]) {
                     let baseUrl = carrierBaseUrls[actualCarrier];
-                    let suffix = carrierUrlSuffixes[actualCarrier] || '';
+                    let suffix = carrierUrlSuffixes[actualCarrier] || ''; // Get suffix if any
                     let encodedTrackingNumber = encodeURIComponent(trackingNumber);
 
-                    // Special handling for URL structures
-                    if (actualCarrier === 'sfexpress') { // Only SF Express needs this direct append now
+                    // SF Express has a different URL structure that doesn't require URI encoding for the number part in the path
+                    if (actualCarrier === 'sfexpress') { 
                         trackingUrl = baseUrl + trackingNumber + suffix; 
                     } else { 
                         trackingUrl = baseUrl + encodedTrackingNumber + suffix;
                     }
-                    allGeneratedLinks.push(trackingUrl);
+                    allGeneratedLinks.push(trackingUrl); // Add to list for "Copy All"
                     generatedCount++;
                 }
                 
+                // Create and append the result item to the display
                 const resultItemDiv = document.createElement('div');
                 resultItemDiv.className = 'result-item';
                 resultItemDiv.innerHTML = `
@@ -300,70 +305,100 @@
                     ${actualCarrier !== 'unknown' ? `<div>Link: <a href="${trackingUrl}" target="_blank" class="result-link">${trackingUrl}</a></div>` : '<div class="text-red-500">Could not generate link (unknown carrier or format).</div>'}
                     <div class="result-actions">
                         ${actualCarrier !== 'unknown' ? `<button class="btn btn-secondary btn-sm copy-single-btn" data-link="${trackingUrl}">Copy</button>
-                        <a href="${trackingUrl}" target="_blank" class="btn btn-primary btn-sm no-underline">Go to Site</a>` : ''}
+                        <a href="${trackingUrl}" target="_blank" class="btn btn-primary btn-sm no-underline" style="text-decoration: none;">Go to Site</a>` : ''}
                     </div>
                 `;
                 resultsContainer.appendChild(resultItemDiv);
             });
 
+            // Show results area and "Copy All" button if links were generated
             if (generatedCount > 0) {
                 overallResultArea.classList.remove('hidden');
                 displayMessage(`${generatedCount} link(s) generated.`, 'success');
+                copyAllBtn.classList.remove('hidden'); 
             } else if (trackingNumbersArray.length > 0) { 
+                 // If numbers were entered but no links generated (e.g., all unknown)
                  displayMessage('Could not generate links for the provided numbers. Check format or select carrier.', 'error');
+                 copyAllBtn.classList.add('hidden'); 
+            } else {
+                // This case should ideally be caught by earlier checks, but as a fallback:
+                copyAllBtn.classList.add('hidden');
             }
 
+            // Add event listeners to "Copy" buttons for individual links
             document.querySelectorAll('.copy-single-btn').forEach(button => {
                 button.addEventListener('click', function() {
                     copyToClipboard(this.dataset.link, 'Single link copied!');
                 });
             });
             
+            // Setup "Copy All" button if there are links to copy
             if(allGeneratedLinks.length > 0) {
                 copyAllBtn.onclick = () => copyToClipboard(allGeneratedLinks.join('\n'), 'All links copied!');
-                copyAllBtn.classList.remove('hidden'); 
-            } else {
-                copyAllBtn.classList.add('hidden'); 
             }
         }
 
+        /**
+         * Copies text to the clipboard. Uses modern Clipboard API with fallback.
+         * @param {string} text - The text to copy.
+         * @param {string} successMessage - Message to display on successful copy.
+         */
         function copyToClipboard(text, successMessage) {
+            // Use modern Clipboard API if available and in a secure context
             if (navigator.clipboard && window.isSecureContext) { 
                 navigator.clipboard.writeText(text)
                     .then(() => {
                         displayMessage(successMessage, 'success');
                     })
                     .catch(err => {
-                        console.error('Failed to copy: ', err);
-                        displayMessage('Failed to copy link. Try manual copy.', 'error');
-                        fallbackCopyTextToClipboard(text, successMessage); 
+                        console.error('Failed to copy using navigator.clipboard: ', err);
+                        displayMessage('Failed to copy link. Using fallback.', 'error');
+                        fallbackCopyTextToClipboard(text, successMessage); // Attempt fallback
                     });
             } else { 
+                // Fallback for older browsers or insecure contexts
                 fallbackCopyTextToClipboard(text, successMessage);
             }
         }
         
+        /**
+         * Fallback method to copy text to clipboard using a temporary textarea.
+         * @param {string} text - The text to copy.
+         * @param {string} successMessage - Message to display on successful copy.
+         */
         function fallbackCopyTextToClipboard(text, successMessage) {
             const textArea = document.createElement("textarea");
             textArea.value = text;
+            // Styling to make the textarea invisible and not affect layout
             textArea.style.top = "0";
             textArea.style.left = "0";
             textArea.style.position = "fixed";
+            textArea.style.opacity = "0"; // Make it invisible
+
             document.body.appendChild(textArea);
             textArea.focus();
-            textArea.select();
+            textArea.select(); // Select the text
+
             try {
-                const successful = document.execCommand('copy');
-                displayMessage(successful ? successMessage + ' (fallback)' : 'Failed to copy (fallback).', successful ? 'success' : 'error');
+                const successful = document.execCommand('copy'); // Attempt to copy
+                const message = successful ? successMessage + ' (fallback)' : 'Failed to copy (fallback).';
+                displayMessage(message, successful ? 'success' : 'error');
             } catch (err) {
-                console.error('Fallback: Oops, unable to copy', err);
+                console.error('Fallback copy error:', err);
                 displayMessage('Failed to copy. Please copy manually.', 'error');
             }
-            document.body.removeChild(textArea);
+
+            document.body.removeChild(textArea); // Clean up the textarea
         }
 
+        /**
+         * Displays a message to the user in the message area.
+         * @param {string} text - The message text.
+         * @param {string} type - The type of message ('success', 'error', 'info').
+         */
         function displayMessage(text, type) {
             messageArea.textContent = text;
+            // Set message color based on type
             switch (type) {
                 case 'success':
                     messageArea.className = 'message-area text-green-600'; 
@@ -377,26 +412,32 @@
                 default:
                     messageArea.className = 'message-area text-gray-700'; 
             }
+            // Auto-clear success/info messages after a delay
+            // Do not auto-clear error messages unless they indicate generation success (e.g. partial success)
             if (type !== 'error' || text.includes("generated")) { 
                  setTimeout(() => {
+                    // Only clear if the message hasn't changed in the meantime
                     if (messageArea.textContent === text) { 
                          messageArea.textContent = '';
                     }
-                }, 4000);
+                }, 4000); // 4-second delay
             }
         }
 
+        // Event listener for the generate button
         generateBtn.addEventListener('click', generateLinks);
 
-        trackingNumbersInput.addEventListener('keypress', function(event) {
-            if (event.key === 'Enter' && !event.shiftKey) { 
-                // event.preventDefault(); 
-                // generateLinks();
-            }
-        });
+        // Optional: Allow Enter key in textarea to trigger generation (if Shift is not pressed)
+        // trackingNumbersInput.addEventListener('keypress', function(event) {
+        //     if (event.key === 'Enter' && !event.shiftKey) { 
+        //         event.preventDefault(); // Prevent newline in textarea
+        //         generateLinks();
+        //     }
+        // });
         
+        // Clear auto-detection messages if carrier is manually changed
         carrierSelect.addEventListener('change', function() {
-            if (messageArea.textContent.startsWith('Auto-detected') || messageArea.textContent.startsWith('Auto: ')) {
+            if (messageArea.textContent.startsWith('Auto: ')) {
                 messageArea.textContent = '';
             }
         });
