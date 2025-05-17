@@ -24,7 +24,6 @@
             width: 100%;
             max-width: 700px; 
             margin-top: 2rem;
-            /* margin-bottom: 2rem; Removed to allow recent changes to be closer */
         }
         .input-label {
             display: block;
@@ -79,6 +78,13 @@
         }
         .btn-secondary:hover {
             background-color: #374151; 
+        }
+        .btn-danger { /* Style for the clear button */
+            background-color: #DC2626; /* Tailwind red-600 */
+            color: white;
+        }
+        .btn-danger:hover {
+            background-color: #B91C1C; /* Tailwind red-700 */
         }
         .results-container {
             margin-top: 1.5rem;
@@ -136,7 +142,7 @@
             display: flex;
             align-items: center;
             cursor: pointer;
-            color: #374151; /* Tailwind gray-700 */
+            color: #374151; 
             margin-bottom: 1rem;
         }
         .toggle-checkbox {
@@ -147,34 +153,34 @@
         .toggle-switch {
             position: relative;
             display: inline-block;
-            width: 3.5rem; /* 56px */
-            height: 2rem; /* 32px */
-            background-color: #D1D5DB; /* Tailwind gray-300 */
-            border-radius: 1rem; /* Tailwind rounded-full */
+            width: 3.5rem; 
+            height: 2rem; 
+            background-color: #D1D5DB; 
+            border-radius: 1rem; 
             transition: background-color 0.2s;
-            margin-right: 0.75rem; /* Tailwind mr-3 */
+            margin-right: 0.75rem; 
         }
         .toggle-switch::before {
             content: "";
             position: absolute;
-            width: 1.5rem; /* 24px */
-            height: 1.5rem; /* 24px */
+            width: 1.5rem; 
+            height: 1.5rem; 
             border-radius: 50%;
             background-color: white;
-            top: 0.25rem; /* 4px */
-            left: 0.25rem; /* 4px */
+            top: 0.25rem; 
+            left: 0.25rem; 
             transition: transform 0.2s;
         }
         .toggle-checkbox:checked + .toggle-switch {
-            background-color: #2563EB; /* Tailwind blue-600 */
+            background-color: #2563EB; 
         }
         .toggle-checkbox:checked + .toggle-switch::before {
-            transform: translateX(1.5rem); /* 24px */
+            transform: translateX(1.5rem); 
         }
         .recent-changes {
             margin-top: 3rem;
             padding: 1.5rem;
-            background-color: #e9e9f0; /* Lighter gray */
+            background-color: #e9e9f0; 
             border-radius: 0.5rem;
             width: 100%;
             max-width: 700px;
@@ -200,8 +206,8 @@
         <h1 class="title">Multi-Tracking Link Generator</h1>
 
         <div>
-            <label for="trackingNumbers" class="input-label">Tracking Numbers (one per line, format: TRACKING_NUMBER | SHIPMENT_NAME):</label>
-            <textarea id="trackingNumbers" class="textarea-field" placeholder="e.g., 880277333110 | Hàng gửi Toray"></textarea>
+            <label for="trackingNumbers" class="input-label">Tracking Numbers (one per line, name is optional):</label>
+            <textarea id="trackingNumbers" class="textarea-field" placeholder="e.g., 123456789012 (TN only)&#10;880277333110 | My Package; My Other Package | 880448906762&#10;Tracking Name 880000111222; 880524626773 Another Shipment Name"></textarea>
         </div>
 
         <div>
@@ -231,6 +237,7 @@
                 </div>
             <button id="copyAllBtn" class="btn btn-secondary mt-4">Copy All Links</button>
             <button id="copyAllInfoBtn" class="btn btn-secondary mt-2">Copy All Information (for Excel)</button> 
+            <button id="clearSavedBtn" class="btn btn-danger mt-2">Clear Saved Links</button>
         </div>
         <div id="messageArea" class="message-area"></div>
     </div>
@@ -251,10 +258,12 @@
         const resultsContainer = document.getElementById('resultsContainer');
         const copyAllBtn = document.getElementById('copyAllBtn');
         const copyAllInfoBtn = document.getElementById('copyAllInfoBtn'); 
+        const clearSavedBtn = document.getElementById('clearSavedBtn');
         const messageArea = document.getElementById('messageArea');
         const changesLogUl = document.getElementById('changesLog');
 
-        // Carrier URL structures for single tracking
+        const LOCAL_STORAGE_KEY = 'savedTrackingGeneratorData';
+
         const carrierBaseUrls = {
             fedex: 'https://www.fedex.com/fedextrack/?trknbr=',
             ups: 'https://www.ups.com/track?loc=en_US&tracknum=',
@@ -262,41 +271,14 @@
             sfexpress: 'https://www.sf-international.com/us/en/dynamic_function/waybill/#search/bill-number/'
         };
 
-        // Carrier URL structures for BULK tracking
         const carrierBulkBaseUrls = {
-            fedex: { 
-                url: 'https://www.fedex.com/fedextrack/summary?trknbr=',
-                separator: ',',
-                limit: 30,
-                needsEncoding: false 
-            },
-            dhl: {
-                url: 'https://www.dhl.com/global-en/home/tracking.html?tracking-id=', 
-                separator: '%20', 
-                limit: 10,
-                suffix: '&locale=true&submit=1', 
-                needsEncoding: false 
-            },
-            sfexpress: {
-                url: 'https://www.sf-international.com/us/en/dynamic_function/waybill/#search/bill-number/',
-                separator: ',',
-                limit: 20,
-                needsEncoding: false 
-            }
+            fedex: { url: 'https://www.fedex.com/fedextrack/summary?trknbr=', separator: ',', limit: 30, needsEncoding: false },
+            dhl: { url: 'https://www.dhl.com/global-en/home/tracking.html?tracking-id=', separator: '%20', limit: 10, suffix: '&locale=true&submit=1', needsEncoding: false },
+            sfexpress: { url: 'https://www.sf-international.com/us/en/dynamic_function/waybill/#search/bill-number/', separator: ',', limit: 20, needsEncoding: false }
         };
         
-        const carrierUrlSuffixes = { 
-            dhl: '&submit=1' 
-        };
-
-        const carrierDisplayNames = {
-            fedex: 'FedEx',
-            ups: 'UPS',
-            dhl: 'DHL Express',
-            sfexpress: 'SF Express',
-            unknown: 'Unknown'
-        };
-
+        const carrierUrlSuffixes = { dhl: '&submit=1' };
+        const carrierDisplayNames = { fedex: 'FedEx', ups: 'UPS', dhl: 'DHL Express', sfexpress: 'SF Express', unknown: 'Unknown' };
         const carrierPatterns = [
             { carrier: 'ups', regex: /^1Z[0-9A-Z]{16}$/i }, 
             { carrier: 'sfexpress', regex: /^SF[0-9]{13}$/i }, 
@@ -308,17 +290,111 @@
             { carrier: 'sfexpress', regex: /^[0-9]{15}$/ }
         ];
 
-        let allGeneratedInfoForExcel = [];
+        let allGeneratedInfoForExcel = []; 
 
         function autoDetectCarrier(trackingNumber) {
             const tnString = String(trackingNumber).toUpperCase(); 
-            for (const pattern of carrierPatterns) {
-                if (pattern.regex.test(tnString)) {
-                    return pattern.carrier;
-                }
-            }
+            for (const pattern of carrierPatterns) if (pattern.regex.test(tnString)) return pattern.carrier;
             return null;
         }
+        
+        function looksLikeTrackingNumber(s) {
+            if (!s || s.length < 6) return false;
+            if (/^[A-Z0-9]+$/i.test(s)) return true; 
+            if ((s.match(/\d/g) || []).length >= Math.min(5, s.length / 2)) return true;
+            if (/^(1Z|SF)/i.test(s)) return true; 
+            return false;
+        }
+
+        function parseInputLine(line) {
+            const originalLine = line;
+            const trimmedLine = line.trim();
+            let rawTn = '';
+            let name = '';
+
+            if (!trimmedLine) return { originalLine, tn: '', name: '' };
+
+            const pipeIndex = trimmedLine.indexOf('|');
+            if (pipeIndex !== -1) {
+                let part1 = trimmedLine.substring(0, pipeIndex).trim();
+                let part2 = trimmedLine.substring(pipeIndex + 1).trim();
+                let part1CleanedForTn = part1.replace(/\s+/g, '');
+                let part2CleanedForTn = part2.replace(/\s+/g, '');
+
+                const isPart1TN = autoDetectCarrier(part1CleanedForTn) || looksLikeTrackingNumber(part1CleanedForTn);
+                const isPart2TN = autoDetectCarrier(part2CleanedForTn) || looksLikeTrackingNumber(part2CleanedForTn);
+
+                if (isPart2TN && !isPart1TN) { // Format: Name | TN
+                    rawTn = part2CleanedForTn;
+                    name = part1;
+                } else { // Default to: TN | Name (also handles isPart1TN && !isPart2TN, or both/neither look like TNs)
+                    rawTn = part1CleanedForTn;
+                    name = part2;
+                }
+                return { originalLine, tn: rawTn, name: name };
+            }
+
+            // No pipe, handle space-separated formats
+            const parts = trimmedLine.split(/\s+/).filter(p => p.length > 0);
+            if (parts.length === 0) return { originalLine, tn: '', name: '' };
+            if (parts.length === 1) {
+                rawTn = parts[0].replace(/\s+/g, '');
+                return { originalLine, tn: rawTn, name: '' };
+            }
+
+            // Try to find a sequence of parts that forms a valid TN
+            for (let len = 1; len <= parts.length; len++) { 
+                for (let i = 0; i <= parts.length - len; i++) { 
+                    const potentialTnSlice = parts.slice(i, i + len);
+                    const potentialTnCleaned = potentialTnSlice.join('').replace(/\s+/g, '');
+
+                    if (autoDetectCarrier(potentialTnCleaned)) {
+                        rawTn = potentialTnCleaned;
+                        const namePartsBefore = parts.slice(0, i);
+                        const namePartsAfter = parts.slice(i + len);
+                        name = namePartsBefore.concat(namePartsAfter).join(' ').trim();
+                        return { originalLine, tn: rawTn, name: name };
+                    }
+                }
+            }
+            
+            const firstPartCleaned = parts[0].replace(/\s+/g, '');
+            if (autoDetectCarrier(firstPartCleaned)) {
+                rawTn = firstPartCleaned;
+                name = parts.slice(1).join(' ').trim();
+                return { originalLine, tn: rawTn, name: name };
+            }
+
+            const lastPartCleaned = parts[parts.length - 1].replace(/\s+/g, '');
+            if (autoDetectCarrier(lastPartCleaned)) {
+                rawTn = lastPartCleaned;
+                name = parts.slice(0, -1).join(' ').trim();
+                return { originalLine, tn: rawTn, name: name };
+            }
+            
+            for (let len = 1; len <= parts.length; len++) {
+                for (let i = 0; i <= parts.length - len; i++) {
+                    const potentialTnSlice = parts.slice(i, i + len);
+                    const potentialTnCleaned = potentialTnSlice.join('').replace(/\s+/g, '');
+                    if (looksLikeTrackingNumber(potentialTnCleaned)) {
+                         rawTn = potentialTnCleaned;
+                         const namePartsBefore = parts.slice(0, i);
+                         const namePartsAfter = parts.slice(i + len);
+                         name = namePartsBefore.concat(namePartsAfter).join(' ').trim();
+                         return { originalLine, tn: rawTn, name: name };
+                    }
+                }
+            }
+
+            const fullLineCleaned = trimmedLine.replace(/\s+/g, '');
+            if (looksLikeTrackingNumber(fullLineCleaned)) {
+                rawTn = fullLineCleaned; name = "";
+            } else { 
+                rawTn = parts[0].replace(/\s+/g, ''); name = parts.slice(1).join(' ').trim();
+            }
+            return { originalLine, tn: rawTn, name: name };
+        }
+
 
         function generateLinks() {
             const rawInputLines = trackingNumbersInput.value.split('\n');
@@ -326,97 +402,125 @@
             const useBulkLink = bulkToggle.checked;
             
             messageArea.textContent = '';
-            resultsContainer.innerHTML = ''; 
-            overallResultArea.classList.add('hidden');
-            allGeneratedInfoForExcel = []; 
-
+            
             if (!rawInputLines.some(line => line.trim() !== '')) {
                 displayMessage('Please enter one or more tracking numbers.', 'error');
                 return;
             }
 
-            const processedShipments = [];
-            const seenTrackingNumbers = new Set();
-
+            const newlyProcessedShipmentsInput = [];
+            const seenInThisBatch = new Set(); 
+            
             rawInputLines.forEach(line => {
-                const trimmedLine = line.trim();
-                if (trimmedLine === '') return;
-
-                const parts = trimmedLine.split('|');
-                const rawTn = parts[0].trim().replace(/\s+/g, ''); 
-                const name = parts.length > 1 ? parts.slice(1).join('|').trim() : ""; 
-
-                if (rawTn && !seenTrackingNumbers.has(rawTn)) {
-                    processedShipments.push({ tn: rawTn, name: name });
-                    seenTrackingNumbers.add(rawTn);
-                }
+                const parsed = parseInputLine(line);
+                if (parsed.tn && !seenInThisBatch.has(parsed.tn)) {
+                    const existingEntry = allGeneratedInfoForExcel.find(item => {
+                        if (item.isBulk) return item.shipmentObjects.some(so => so.tn === parsed.tn);
+                        return item.tns === parsed.tn;
+                    });
+                    if (!existingEntry) {
+                        newlyProcessedShipmentsInput.push(parsed); 
+                        seenInThisBatch.add(parsed.tn);
+                    } else {
+                        console.log(`TN ${parsed.tn} already in stored data, skipping.`);
+                    }
+                } else if (parsed.tn && seenInThisBatch.has(parsed.tn)) {
+                    console.log(`TN ${parsed.tn} is a duplicate within this batch, skipping.`);
+                } 
             });
 
-            if (processedShipments.length === 0) {
-                displayMessage('Please enter valid tracking numbers (duplicates based on TN removed).', 'error');
+            if (newlyProcessedShipmentsInput.length === 0) {
+                displayMessage('No new, unique tracking numbers to process.', 'info');
+                trackingNumbersInput.value = rawInputLines.filter(line => {
+                     const parsed = parseInputLine(line);
+                     return !parsed.tn || 
+                            !allGeneratedInfoForExcel.find(item => item.isBulk ? item.shipmentObjects.some(so => so.tn === parsed.tn) : item.tns === parsed.tn);
+                }).join('\n');
+                if (allGeneratedInfoForExcel.length > 0) { 
+                     overallResultArea.classList.remove('hidden');
+                     clearSavedBtn.classList.remove('hidden');
+                }
                 return;
             }
 
-            const allGeneratedLinks = []; 
+            const currentBatchGeneratedLinks = []; 
+            const currentBatchInfoForExcel = [];
+            const successfullyProcessedTNsInThisBatch = new Set();
+
 
             if (useBulkLink) {
                 if (selectedCarrierOption === 'auto') {
                     const groupedByCarrier = {};
-                    processedShipments.forEach(shipment => {
-                        const detected = autoDetectCarrier(shipment.tn) || 'unknown';
-                        if (!groupedByCarrier[detected]) {
-                            groupedByCarrier[detected] = [];
-                        }
-                        groupedByCarrier[detected].push(shipment);
+                    newlyProcessedShipmentsInput.forEach(shipmentInput => { 
+                        const detected = autoDetectCarrier(shipmentInput.tn) || 'unknown';
+                        if (!groupedByCarrier[detected]) groupedByCarrier[detected] = [];
+                        groupedByCarrier[detected].push(shipmentInput);
                     });
 
                     for (const carrierKey in groupedByCarrier) {
                         const shipmentsForCarrier = groupedByCarrier[carrierKey];
                         if (carrierKey === 'unknown' || !carrierBulkBaseUrls[carrierKey] || shipmentsForCarrier.length === 0) {
-                            shipmentsForCarrier.forEach(shipment => processSingleShipment(shipment, carrierKey, allGeneratedLinks, allGeneratedInfoForExcel));
+                            shipmentsForCarrier.forEach(shipment => processSingleShipment(shipment, carrierKey, currentBatchGeneratedLinks, currentBatchInfoForExcel, true, successfullyProcessedTNsInThisBatch));
                         } else {
-                            processBulkShipments(shipmentsForCarrier, carrierKey, allGeneratedLinks, allGeneratedInfoForExcel);
+                            processBulkShipments(shipmentsForCarrier, carrierKey, currentBatchGeneratedLinks, currentBatchInfoForExcel, true, successfullyProcessedTNsInThisBatch);
                         }
                     }
                 } else { 
-                    if (carrierBulkBaseUrls[selectedCarrierOption] && processedShipments.length > 0) {
-                        processBulkShipments(processedShipments, selectedCarrierOption, allGeneratedLinks, allGeneratedInfoForExcel);
+                    if (carrierBulkBaseUrls[selectedCarrierOption] && newlyProcessedShipmentsInput.length > 0) {
+                        processBulkShipments(newlyProcessedShipmentsInput, selectedCarrierOption, currentBatchGeneratedLinks, currentBatchInfoForExcel, true, successfullyProcessedTNsInThisBatch);
                     } else { 
-                        processedShipments.forEach(shipment => processSingleShipment(shipment, selectedCarrierOption, allGeneratedLinks, allGeneratedInfoForExcel));
+                        newlyProcessedShipmentsInput.forEach(shipment => processSingleShipment(shipment, selectedCarrierOption, currentBatchGeneratedLinks, currentBatchInfoForExcel, true, successfullyProcessedTNsInThisBatch));
                     }
                 }
             } else {
-                processedShipments.forEach(shipment => {
+                newlyProcessedShipmentsInput.forEach(shipment => {
                     let actualCarrier = selectedCarrierOption;
                     if (selectedCarrierOption === 'auto') {
                         actualCarrier = autoDetectCarrier(shipment.tn) || 'unknown';
                     }
-                    processSingleShipment(shipment, actualCarrier, allGeneratedLinks, allGeneratedInfoForExcel);
+                    processSingleShipment(shipment, actualCarrier, currentBatchGeneratedLinks, currentBatchInfoForExcel, true, successfullyProcessedTNsInThisBatch);
                 });
             }
+            
+            allGeneratedInfoForExcel.unshift(...currentBatchInfoForExcel);
 
-            if (resultsContainer.children.length > 0 ) {
+            const linesToKeepInTextarea = [];
+            rawInputLines.forEach(line => {
+                const parsedForCheck = parseInputLine(line);
+                if (line.trim() === '' || (parsedForCheck.tn && !successfullyProcessedTNsInThisBatch.has(parsedForCheck.tn) && 
+                    !allGeneratedInfoForExcel.slice(currentBatchInfoForExcel.length).some(item => 
+                        item.isBulk ? item.shipmentObjects.some(so => so.tn === parsedForCheck.tn) : item.tns === parsedForCheck.tn
+                    )) || !parsedForCheck.tn) {
+                    linesToKeepInTextarea.push(line);
+                }
+            });
+            trackingNumbersInput.value = linesToKeepInTextarea.join('\n');
+
+
+            if (allGeneratedInfoForExcel.length > 0 ) { 
                 overallResultArea.classList.remove('hidden');
-                displayMessage(`${resultsContainer.children.length} link item(s) generated.`, 'success');
+                if (currentBatchInfoForExcel.length > 0) {
+                    displayMessage(`${currentBatchInfoForExcel.length} new link item(s) generated and added to top.`, 'success');
+                } else if (newlyProcessedShipmentsInput.length > 0) {
+                    displayMessage('No new links generated (possibly already processed or invalid formats).', 'info');
+                }
                 copyAllBtn.classList.remove('hidden');
                 copyAllInfoBtn.classList.remove('hidden'); 
-            } else if (processedShipments.length > 0) { 
-                 displayMessage('Could not generate links. Check formats or carrier selection.', 'error');
-                 copyAllBtn.classList.add('hidden');
-                 copyAllInfoBtn.classList.add('hidden');
-            } else { 
-                copyAllBtn.classList.add('hidden');
-                copyAllInfoBtn.classList.add('hidden');
+                clearSavedBtn.classList.remove('hidden');
+                saveDataToLocalStorage(); 
+            } else if (newlyProcessedShipmentsInput.length > 0 || linesToKeepInTextarea.length > 0) { 
+                 displayMessage('Could not generate links for the new numbers. Check formats or carrier selection.', 'error');
             }
             
-            setupCopyButtons();
-            if (allGeneratedLinks.length > 0) {
-                 copyAllBtn.onclick = () => copyToClipboard(allGeneratedLinks.join('\n'), 'All links copied!');
+            setupCopyButtons(); 
+            
+            const allLinksForCopyButton = allGeneratedInfoForExcel.map(info => info.link);
+            if (allLinksForCopyButton.length > 0) {
+                 copyAllBtn.onclick = () => copyToClipboard(allLinksForCopyButton.join('\n'), 'All links copied!');
             }
             if (allGeneratedInfoForExcel.length > 0) {
                 copyAllInfoBtn.onclick = () => {
                     const excelData = allGeneratedInfoForExcel.map(info => {
-                        // Removed the single quote prefix for TNs
                         return `${info.name}\t${info.tns}\t${info.link}`;
                     }).join('\n');
                     copyToClipboard(excelData, 'All information copied for Excel!');
@@ -424,55 +528,75 @@
             }
         }
 
-        function processBulkShipments(shipmentObjects, carrierKey, allGeneratedLinksList, allGeneratedInfoList) {
+        function processBulkShipments(shipmentObjects, carrierKey, allGeneratedLinksList, allGeneratedInfoList, prependToDisplay = false, successSet) {
             const bulkInfo = carrierBulkBaseUrls[carrierKey];
             if (!bulkInfo) { 
-                shipmentObjects.forEach(shipment => processSingleShipment(shipment, carrierKey, allGeneratedLinksList, allGeneratedInfoList));
+                shipmentObjects.forEach(shipment => processSingleShipment(shipment, carrierKey, allGeneratedLinksList, allGeneratedInfoList, prependToDisplay, successSet));
                 return;
             }
-
             const limit = bulkInfo.limit;
-            
             for (let i = 0; i < shipmentObjects.length; i += limit) {
                 const chunkOfShipmentObjects = shipmentObjects.slice(i, i + limit); 
                 const chunkOfTns = chunkOfShipmentObjects.map(s => s.tn);
-                
                 let joinedTns = chunkOfTns.join(bulkInfo.separator);
                 let bulkUrl = bulkInfo.url + joinedTns + (bulkInfo.suffix || '');
-                
                 const firstShipmentNameInChunk = chunkOfShipmentObjects[0].name; 
-                displayResultItem(chunkOfShipmentObjects, carrierKey, bulkUrl, true, firstShipmentNameInChunk);
-                allGeneratedLinksList.push(bulkUrl);
-                allGeneratedInfoList.push({ name: firstShipmentNameInChunk, tns: chunkOfTns.join(', '), link: bulkUrl });
+                
+                if (carrierKey !== 'unknown' && bulkUrl !== '#') {
+                    chunkOfTns.forEach(tn => successSet.add(tn));
+                    displayResultItem(chunkOfShipmentObjects, carrierKey, bulkUrl, true, firstShipmentNameInChunk, prependToDisplay);
+                    allGeneratedLinksList.push(bulkUrl); 
+                    allGeneratedInfoList.push({ 
+                        name: firstShipmentNameInChunk, 
+                        tns: chunkOfTns.join(', '), 
+                        link: bulkUrl,
+                        carrierKey: carrierKey,
+                        isBulk: true,
+                        shipmentObjects: chunkOfShipmentObjects 
+                    });
+                } else {
+                    chunkOfShipmentObjects.forEach(shipment => {
+                         // No explicit action needed here, as successSet won't include these TNs,
+                         // so their original lines will be kept in the textarea.
+                    });
+                }
             }
         }
 
-        function processSingleShipment(shipmentObject, carrierKey, allGeneratedLinksList, allGeneratedInfoList) {
+        function processSingleShipment(shipmentObject, carrierKey, allGeneratedLinksList, allGeneratedInfoList, prependToDisplay = false, successSet) {
             let displayName = carrierDisplayNames[carrierKey] || (carrierKey === 'unknown' ? 'Auto: Unknown' : `Auto: ${carrierDisplayNames[carrierKey] || carrierKey.toUpperCase()}`);
             if (carrierSelect.value !== 'auto' && carrierKey !== 'unknown') {
                  displayName = carrierDisplayNames[carrierKey] || carrierKey.toUpperCase();
             }
-
             let trackingUrl = '#';
             if (carrierKey !== 'unknown' && carrierBaseUrls[carrierKey]) {
                 let baseUrl = carrierBaseUrls[carrierKey];
                 let suffix = carrierUrlSuffixes[carrierKey] || ''; 
-                
                 if (carrierKey === 'sfexpress') { 
                     trackingUrl = baseUrl + shipmentObject.tn + suffix; 
                 } else { 
                     trackingUrl = baseUrl + encodeURIComponent(shipmentObject.tn) + suffix;
                 }
-                allGeneratedLinksList.push(trackingUrl);
-                allGeneratedInfoList.push({ name: shipmentObject.name, tns: shipmentObject.tn, link: trackingUrl });
+
+                if (trackingUrl !== '#') { 
+                    successSet.add(shipmentObject.tn);
+                    allGeneratedLinksList.push(trackingUrl);
+                    allGeneratedInfoList.push({ 
+                        name: shipmentObject.name, 
+                        tns: shipmentObject.tn, 
+                        link: trackingUrl,
+                        carrierKey: carrierKey,
+                        isBulk: false,
+                        shipmentObjects: [shipmentObject] 
+                    });
+                }
             }
-            displayResultItem([shipmentObject], carrierKey, trackingUrl, false, shipmentObject.name);
+            displayResultItem([shipmentObject], carrierKey, trackingUrl, false, shipmentObject.name, prependToDisplay);
         }
         
-        function displayResultItem(shipmentObjects, carrierKey, url, isBulk, displayNameForHeader = "") {
+        function displayResultItem(shipmentObjects, carrierKey, url, isBulk, displayNameForHeader = "", prepend = false) {
             const resultItemDiv = document.createElement('div');
             resultItemDiv.className = 'result-item';
-            
             let namePart = "";
             let tnPart = "";
 
@@ -496,7 +620,7 @@
             
             let carrierDisplayNameText = carrierDisplayNames[carrierKey] || carrierKey.toUpperCase();
             if (carrierSelect.value === 'auto' && carrierKey !== 'unknown') { 
-                carrierDisplayNameText = (isBulk ? "Auto-Grouped: " : "Auto: ") + carrierDisplayNameText;
+                carrierDisplayNameText = (isBulk ? "Auto-Grouped: " : "Auto: ") + (carrierDisplayNames[carrierKey] || carrierKey.toUpperCase());
             }
 
             resultItemDiv.innerHTML = `
@@ -510,7 +634,11 @@
                     <a href="${url}" target="_blank" class="btn btn-primary btn-sm no-underline" style="text-decoration: none;">Go to Site</a>` : ''}
                 </div>
             `;
-            resultsContainer.appendChild(resultItemDiv);
+            if (prepend) {
+                resultsContainer.insertBefore(resultItemDiv, resultsContainer.firstChild);
+            } else {
+                resultsContainer.appendChild(resultItemDiv);
+            }
         }
 
         function setupCopyButtons() {
@@ -563,34 +691,98 @@
                 case 'info': messageArea.className = 'message-area text-blue-600'; break;
                 default: messageArea.className = 'message-area text-gray-700'; 
             }
-            if (type !== 'error' || text.includes("generated")) { 
+            if (type !== 'error' || text.includes("generated") || text.includes("Loaded") || text.includes("cleared")) { 
                  setTimeout(() => {
                     if (messageArea.textContent === text) messageArea.textContent = '';
                 }, 4000);
             }
         }
+
+        function saveDataToLocalStorage() {
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(allGeneratedInfoForExcel));
+        }
+
+        function loadSavedData() {
+            const savedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+            resultsContainer.innerHTML = ''; 
+            allGeneratedInfoForExcel = [];   
+
+            if (savedData) {
+                try {
+                    const loadedData = JSON.parse(savedData);
+                    if (Array.isArray(loadedData) && loadedData.length > 0) {
+                        allGeneratedInfoForExcel = loadedData; 
+                        const allLinksForCopyButton = [];
+                        
+                        allGeneratedInfoForExcel.forEach(info => {
+                            displayResultItem(info.shipmentObjects, info.carrierKey, info.link, info.isBulk, info.name, false); 
+                            allLinksForCopyButton.push(info.link);
+                        });
+
+                        overallResultArea.classList.remove('hidden');
+                        copyAllBtn.classList.remove('hidden');
+                        copyAllInfoBtn.classList.remove('hidden');
+                        clearSavedBtn.classList.remove('hidden');
+                        displayMessage('Loaded previously generated links.', 'info');
+
+                        if (allLinksForCopyButton.length > 0) {
+                            copyAllBtn.onclick = () => copyToClipboard(allLinksForCopyButton.join('\n'), 'All links copied!');
+                        }
+                        if (allGeneratedInfoForExcel.length > 0) {
+                             copyAllInfoBtn.onclick = () => {
+                                const excelData = allGeneratedInfoForExcel.map(info => {
+                                    return `${info.name}\t${info.tns}\t${info.link}`;
+                                }).join('\n');
+                                copyToClipboard(excelData, 'All information copied for Excel!');
+                            };
+                        }
+                        setupCopyButtons();
+                    }
+                } catch (e) {
+                    console.error("Error parsing saved data from Local Storage:", e);
+                    localStorage.removeItem(LOCAL_STORAGE_KEY); 
+                }
+            }
+        }
         
-        // --- Recent Changes Log ---
         const changes = [
-            { date: "2025-05-16", summary: "Removed single quote prefix for tracking numbers in 'Copy All Information (for Excel)' to prevent issues with Excel's text interpretation and ensure direct usability of numbers." },
-            { date: "2025-05-16", summary: "Added 'Copy All Information (for Excel)' button to copy Name, TN(s), and Link in a tab-separated format." },
-            { date: "2025-05-16", summary: "Implemented shipment naming using '|' separator and display of names in results." },
-            { date: "2025-05-16", summary: "Added support for bulk tracking links for FedEx, DHL, and SF Express with a toggle switch and carrier-specific limits." },
-            { date: "2025-05-16", summary: "Added deduplication of tracking numbers before processing." }
+             { date: "2025-05-18", summary: "Updated placeholder text to prioritize 'TN only' example and include combined examples for other formats." },
+             { date: "2025-05-18", summary: "Further refined `parseInputLine` for more robust handling of 'TN Name' and 'Name TN' formats when using spaces as separators, including prioritizing 'Name | TN' if pipe is present." },
+             { date: "2025-05-18", summary: "Updated textarea behavior: only lines that failed link generation in the current batch remain in the input box." },
+             { date: "2025-05-18", summary: "Further refined `parseInputLine` to better handle space-separated tracking numbers and names, especially when `autoDetectCarrier` is involved with combined parts. Prioritizes single 'word' TNs if they match." },
+             { date: "2025-05-18", summary: "Refined `parseInputLine` to better handle space-separated tracking numbers and names, prioritizing `autoDetectCarrier` on combined parts and specific formats." },
+             { date: "2025-05-17", summary: "Improved input parsing for shipment names to handle formats like 'TN Name' and 'Name TN' more reliably, in addition to 'TN | Name'." },
+             { date: "2025-05-17", summary: "Modified link generation to prepend new results to the display and data storage, maintaining previous results." },
+             { date: "2025-05-17", summary: "Implemented Local Storage to persist generated links across sessions. Added 'Clear Saved Links' button." },
+             { date: "2025-05-16", summary: "Removed single quote prefix for tracking numbers in 'Copy All Information (for Excel)' to prevent issues with Excel's text interpretation and ensure direct usability of numbers." },
+             { date: "2025-05-16", summary: "Added 'Copy All Information (for Excel)' button to copy Name, TN(s), and Link in a tab-separated format." },
+             { date: "2025-05-16", summary: "Implemented shipment naming using '|' separator and display of names in results." },
+             { date: "2025-05-16", summary: "Added support for bulk tracking links for FedEx, DHL, and SF Express with a toggle switch and carrier-specific limits." },
+             { date: "2025-05-16", summary: "Added deduplication of tracking numbers before processing." }
         ];
 
         function populateRecentChanges() {
+            changesLogUl.innerHTML = ''; 
             changes.forEach(change => {
                 const li = document.createElement('li');
                 li.innerHTML = `<strong>${change.date}:</strong> ${change.summary}`;
                 changesLogUl.appendChild(li);
             });
         }
-        // --- End Recent Changes Log ---
 
-
-        // Event Listeners & Initial Calls
         generateBtn.addEventListener('click', generateLinks);
+        
+        clearSavedBtn.addEventListener('click', function() {
+            localStorage.removeItem(LOCAL_STORAGE_KEY);
+            allGeneratedInfoForExcel = [];
+            resultsContainer.innerHTML = '';
+            overallResultArea.classList.add('hidden');
+            copyAllBtn.classList.add('hidden');
+            copyAllInfoBtn.classList.add('hidden');
+            clearSavedBtn.classList.add('hidden');
+            trackingNumbersInput.value = ''; 
+            displayMessage('Saved links cleared!', 'info');
+        });
         
         carrierSelect.addEventListener('change', function() {
             if (messageArea.textContent.startsWith('Auto: ')) {
@@ -598,8 +790,10 @@
             }
         });
 
-        // Populate recent changes on load
-        document.addEventListener('DOMContentLoaded', populateRecentChanges);
+        document.addEventListener('DOMContentLoaded', () => {
+            populateRecentChanges();
+            loadSavedData(); 
+        });
 
     </script>
 </body>
